@@ -16,6 +16,8 @@ Including another URLconf
 from django.urls import include
 from django.urls import path
 from django.views.generic import RedirectView
+from django.contrib import admin
 urlpatterns = [
     path('', RedirectView.as_view(url='/catalog/', permanent=True)),
+    path('admin/', admin.site.urls)
 ]
