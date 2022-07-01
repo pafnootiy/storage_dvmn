@@ -17,7 +17,9 @@ logging.basicConfig(
 
 logger = logging.getLogger(__name__)
 
-AGREEMENT, GET_NUMBER, GET_NAME, MENU, ORDERS, ADRESS = range(6)
+AGREEMENT, GET_NUMBER, GET_NAME, MENU, ORDERS, ORDER_ADDRESS, ORDER_NEW, \
+    ORDER_APPROX_SIZE, ORDER_DATE, ORDER_APPROVE, ORDER_SIZE, \
+    ORDER_SEND = range(12)
 
 
 def start(update: Update, context: CallbackContext) -> int:
@@ -30,8 +32,7 @@ def start(update: Update, context: CallbackContext) -> int:
         'Мы делаем хранение вещей удобным и доступным.\n\n'
         'Приступим?',
         reply_markup=ReplyKeyboardMarkup(
-            reply_keyboard, one_time_keyboard=True,
-            input_field_placeholder='Boy or Girl?'
+            reply_keyboard, one_time_keyboard=True
         ),
     )
 
@@ -44,7 +45,7 @@ def agreement(update: Update, context: CallbackContext) -> int:
     update.message.reply_text(
         'Давайте знакомиться! Как мне к Вам обращаться?\n'
         'ВНИМАНИЕ! Отправляя данные вы соглашаетесь '
-        'с обработкой персональных данных.\n '
+        'с обработкой персональных данных.\n'
         'Подробнее об этом по ссылке:\n'
         'https//agreement.ru', reply_markup=ReplyKeyboardRemove()
     )
@@ -109,27 +110,119 @@ def menu(update: Update, context: CallbackContext) -> int:
 def new(update: Update, context: CallbackContext) -> int:
     reply_keyboard = [['Привезу сам. Посмотреть адреса складов'],
                       ['Хочу, чтобы забрал курьер'],
-                      ['Назад']]
+                      ['Тарифы'],
+                      ['Личный кабинет']]
+    print(update)
     update.message.reply_text(
-        'Оформляем новый заказ\n'
-        'Тут указание тарифов\n',
+        '''
+ОФОРМИТЬ НОВЫЙ ЗАКАЗ
+Здесь вы сможете оформить новый заказ!
+
+Есть 2 опции:
+1) Самостоятельно привезти груз на склад
+2) Оформить бесплатный вывоз курьером
+
+Как действуем?''',
         reply_markup=ReplyKeyboardMarkup(
             reply_keyboard, one_time_keyboard=True)
     )
-    return ADRESS
+    return ORDER_NEW
 
 
-def get_adress(update: Update, context: CallbackContext) -> int:
+def selfstorage(update: Update, context: CallbackContext) -> int:
+    reply_keyboard = [['Хочу, чтобы забрал курьер'],
+                      ['Тарифы'],
+                      ['Назад']]
+    update.message.reply_text(
+        '''
+Здесь адреса складов''',
+        reply_markup=ReplyKeyboardMarkup(
+            reply_keyboard, one_time_keyboard=True)
+    )
+    return ORDER_NEW
+
+
+def get_order_adress(update: Update, context: CallbackContext) -> int:
+    """Get adress"""
+    # order_id = create_db_order(tg_id=used.id)
+    # user_data
+    # update_db_order(id=order_id, name=user.name)
+    update.message.reply_text('Введите адрес, с которого надо забрать груз\n'
+                              'Пример команды:\n\n'
+                              'Красная площадь, дом 3, кв 1')
+
+    return ORDER_DATE
+
+
+def get_order_date(update: Update, context: CallbackContext) -> int:
     """Get addres"""
     user = update.message.from_user
     # order_id = create_db_order(tg_id=used.id)
     # user_data
     # update_db_order(id=order_id, name=user.name)
     logger.info("Name of %s: %s", user.first_name, update.message.text)
-    update.message.reply_text('Введите адрес, с которого надо забрать груз\n'
+    update.message.reply_text('Введите удобную дату и время доставки\n'
                               'Пример команды:\n\n'
-                              'Красноя площадь, дом 3, кв 1')
+                              '23.12 с 18:00-23:00')
 
+    return ORDER_APPROX_SIZE
+
+
+def get_order_approx_size(update: Update, context: CallbackContext) -> int:
+    """Get addres"""
+    reply_keyboard = [['Легковой авто'],
+                      ['Газель'],
+                      ['Мега-газель (несколько боксов)']]
+    update.message.reply_text(
+        '''
+Укажите ориентировочный размер груза:
+
+Легковой: до 5 коробок 1х1х1 метра
+Газель: до 4х3х2 метра
+Мега-Газель: до 6х3х2 метра
+
+Насколько у вас много барахла?''',
+        reply_markup=ReplyKeyboardMarkup(
+            reply_keyboard, one_time_keyboard=True)
+    )
+
+    print(f'Размер груза: {update.message.reply_text}')
+    return ORDER_APPROVE
+
+
+def get_order_approve(update: Update, context: CallbackContext) -> int:
+    """Get addres"""
+    reply_keyboard = [['Отправить заказ'],
+                      ['Изменить (не работает пока)'],
+                      ['Отменить (не работает пока)']]
+    update.message.reply_text(
+        '''
+ПРОВЕРЬТЕ ДАННЫЕ ЗАКАЗА
+
+Адрес: {{order.adress}}
+Дата: {{order.date}}
+Приблизительный размер: {{order.app_size}}
+
+        ''',
+        reply_markup=ReplyKeyboardMarkup(
+            reply_keyboard, one_time_keyboard=True)
+    )
+    return ORDER_SEND
+
+
+def send_order(update: Update, context: CallbackContext) -> int:
+    reply_keyboard = [['Вернуться в личный кабинет'],
+                      ['Оформить новый заказ']]
+    update.message.reply_text(
+        '''
+Ваш заказ отправлен!
+Уже скоро мы его обработаем, и его статус обновится!
+
+Спасибо за пользование нашим сервисом!
+  ''',
+        reply_markup=ReplyKeyboardMarkup(
+            reply_keyboard, one_time_keyboard=True)
+    )
     return MENU
 
 
@@ -310,7 +403,12 @@ def main() -> None:
 
     # Add conversation handler with the states GENDER, PHOTO, LOCATION and BIO
     conv_handler = ConversationHandler(
-        entry_points=[CommandHandler('start', start)],
+        entry_points=[CommandHandler('start', start),
+                      CommandHandler('lk', menu),
+                      CommandHandler('tariffs', tariffs),
+                      CommandHandler('rules', rules),
+                      CommandHandler('prohobited', prohobited),
+                      CommandHandler('new', new)],
         states={
             AGREEMENT: [MessageHandler(Filters.regex('^(Далее)$'),
                                        agreement)],
@@ -322,8 +420,8 @@ def main() -> None:
                                   about),
                    MessageHandler(Filters.regex('^(Правила сервиса)$'),
                                   rules),
-                   MessageHandler(Filters.regex('новый заказ'),
-                                  about),
+                   MessageHandler(Filters.regex('овый заказ'),
+                                  new),
                    MessageHandler(Filters.regex('^(Мои хранения)$'),
                                   orders),
                    MessageHandler(Filters.regex('запрещенных'),
@@ -333,13 +431,33 @@ def main() -> None:
                    CommandHandler('menu', menu),
                    MessageHandler(Filters.regex('кабинет'),
                                   menu),
-                   MessageHandler(Filters.regex('^(Оформить новый заказ)$'),
-                                  new)
                    ],
             ORDERS: [CommandHandler('orders',
                                     orders)],
-            ADRESS: [MessageHandler(Filters.text & ~Filters.command,
-                                    get_adress)]
+            ORDER_NEW: [CommandHandler('orders',
+                                       orders),
+                        MessageHandler(Filters.regex('адреса складов'),
+                                       selfstorage),
+                        MessageHandler(Filters.regex('азад'),
+                                       new),
+                        MessageHandler(Filters.regex('курьер'),
+                                       get_order_adress),
+                        MessageHandler(Filters.regex('^(Тарифы)$'),
+                                       tariffs)
+                        ],
+            ORDER_ADDRESS: [MessageHandler(Filters.text & ~Filters.command,
+                                           get_order_adress)],
+            ORDER_DATE: [MessageHandler(Filters.text & ~Filters.command,
+                                        get_order_date)],
+            ORDER_APPROX_SIZE: [MessageHandler(Filters.text & ~Filters.command,
+                                               get_order_approx_size)],
+            ORDER_APPROVE: [MessageHandler(Filters.text & ~Filters.command,
+                                           get_order_approve)],
+            ORDER_SIZE: [MessageHandler(Filters.text & ~Filters.command,
+                                        get_order_approx_size)],
+            ORDER_SEND: [MessageHandler(Filters.regex('тправить заказ'),
+                                        send_order)
+                         ]
         },
         fallbacks=[CommandHandler('cancel',
                                   cancel)],
