@@ -4,13 +4,15 @@ import logging
 import os
 
 from dotenv import load_dotenv
-from telegram import ReplyKeyboardMarkup, ReplyKeyboardRemove, Update, KeyboardButton
+from telegram import (KeyboardButton, ReplyKeyboardMarkup, ReplyKeyboardRemove,
+                      Update)
 from telegram.ext import (CallbackContext, CommandHandler, ConversationHandler,
                           Filters, MessageHandler, Updater)
 
 # Enable logging
 logging.basicConfig(
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    level=logging.INFO
 )
 
 logger = logging.getLogger(__name__)
@@ -23,13 +25,13 @@ def start(update: Update, context: CallbackContext) -> int:
 
     print(update)
     reply_keyboard = [['Далее']]
-
     update.message.reply_text(
-        'Добро пожаловать в сервис SELF_STORAGE!'
+        'Добро пожаловать в сервис SELF_STORAGE!\n'
         'Мы делаем хранение вещей удобным и доступным.\n\n'
         'Приступим?',
         reply_markup=ReplyKeyboardMarkup(
-            reply_keyboard, one_time_keyboard=True, input_field_placeholder='Boy or Girl?'
+            reply_keyboard, one_time_keyboard=True,
+            input_field_placeholder='Boy or Girl?'
         ),
     )
 
@@ -37,64 +39,67 @@ def start(update: Update, context: CallbackContext) -> int:
 
 
 def agreement(update: Update, context: CallbackContext) -> int:
-    user = update.message.from_user
     # if not check_if_agreement(user.id):
     # create_db_user(tg_id=user.id)
-    contact_keyboard = KeyboardButton('Отправить свой номер', request_contact=True)
-    reply_keyboard = [[contact_keyboard]]
     update.message.reply_text(
-        'Давайте знакомиться! Пришлите, пожалуйтса, ваш номер телефона.\n'
-        'ВНИМАНИЕ! Отправляя данные вы соглашаетесь с обработкой персональных данных.\n '
+        'Давайте знакомиться! Как мне к Вам обращаться?\n'
+        'ВНИМАНИЕ! Отправляя данные вы соглашаетесь '
+        'с обработкой персональных данных.\n '
         'Подробнее об этом по ссылке:\n'
-        'https//agreement.ru', reply_markup=ReplyKeyboardMarkup(
-            reply_keyboard, one_time_keyboard=True)
-
+        'https//agreement.ru', reply_markup=ReplyKeyboardRemove()
     )
-    return GET_NUMBER
+    return GET_NAME
     # return MAIN
 
 
 def get_phone(update: Update, context: CallbackContext) -> int:
     """Get user number"""
     user = update.message.from_user
-    phone = update.message.contact
     print(update)
+    contact_keyboard = KeyboardButton('Перейти в личный кабинет ➡️')
+    reply_keyboard = [[contact_keyboard]]
     update.message.reply_text(
-        'Супер! Как нам к Вам обращаться?',
-        reply_markup=ReplyKeyboardRemove(),
+        'Спасибо! \n'
+        'Ваш личный кабинет создан 👍',
+        reply_markup=ReplyKeyboardMarkup(
+            reply_keyboard,
+            one_time_keyboard=True)
     )
-    logger.info("Gender of %s: %s", user.first_name, update.message.text)
+    logger.info("Phone of %s: %s", user.username, update.message.text)
 
-    return GET_NAME
+    return MENU
 
 
 def get_name(update: Update, context: CallbackContext) -> int:
     """Get user name"""
     user = update.message.from_user
-    reply_keyboard = [['Приступим!']]
+    contact_keyboard = KeyboardButton('Отправить свой номер',
+                                      request_contact=True
+                                      )
+    reply_keyboard = [[contact_keyboard]]
     # update_db_user(tg_id=user.id, name=user.name)
     logger.info("Name of %s: %s", user.first_name, update.message.text)
     update.message.reply_text(f'Приятно познакомиться, {update.message.text}\n'
-                              f'Переходите в личный кабинет для начала работы',
+                              'Поделитесь, пожалуйста, Вашим номером, '
+                              'чтобы мы могли связаться с вами',
                               reply_markup=ReplyKeyboardMarkup(
                                   reply_keyboard,
                                   one_time_keyboard=True)
                               )
 
-    return MENU
+    return GET_NUMBER
 
 
 def menu(update: Update, context: CallbackContext) -> int:
     print(f'Вы в меню {update}')
-    user = update.message.from_user
     # if not check_if_agreement(user.id):
     # create_db_user(tg_id=user.id)
     reply_keyboard = [['Новый заказ'], ['Мои хранения'], ['О сервисе']]
     update.message.reply_text(
-        f'Личный кабинет Алексендра Распа\n\n'
-        f'Все боксов арендовано: 5\n'
-        f'Ближайшая оплата: 24.12.2020\n'
-        f'Чтобы вы хотели сейчас сделать?',
+        'Личный кабинет Алексендра Распа\n\n'
+        'Все боксов арендовано: 5\n'
+        'Ближайшая оплата: 24.12.2020\n'
+        'Чтобы вы хотели сейчас сделать?',
         reply_markup=ReplyKeyboardMarkup(
             reply_keyboard, one_time_keyboard=True)
     )
@@ -102,13 +107,12 @@ def menu(update: Update, context: CallbackContext) -> int:
 
 
 def new(update: Update, context: CallbackContext) -> int:
-    user = update.message.from_user
     reply_keyboard = [['Привезу сам. Посмотреть адреса складов'],
                       ['Хочу, чтобы забрал курьер'],
                       ['Назад']]
     update.message.reply_text(
-        f'Оформляем новый заказ\n'
-        f'Тут указание тарифов\n',
+        'Оформляем новый заказ\n'
+        'Тут указание тарифов\n',
         reply_markup=ReplyKeyboardMarkup(
             reply_keyboard, one_time_keyboard=True)
     )
@@ -122,19 +126,26 @@ def get_adress(update: Update, context: CallbackContext) -> int:
     # user_data
     # update_db_order(id=order_id, name=user.name)
     logger.info("Name of %s: %s", user.first_name, update.message.text)
-    update.message.reply_text(f'Введите адрес, с которого надо забрать груз\n'
-                              f'Пример команды:\n\n'
-                              f'Красноя площадь, дом 3, кв 1')
+    update.message.reply_text('Введите адрес, с которого надо забрать груз\n'
+                              'Пример команды:\n\n'
+                              'Красноя площадь, дом 3, кв 1')
 
     return MENU
 
 
 def about(update: Update, context: CallbackContext) -> int:
+    """About service"""
     print(f'Вы в ABOUT {update}')
-    user = update.message.from_user
-    reply_keyboard = [['Личный кабинет'], ['Тарифы'], ['Правила сервиса'], ['Список запрещенных вещей']]
+    reply_keyboard = [['Тарифы'],
+                      ['Правила сервиса'],
+                      ['Список запрещенных вещей'],
+                      ['Личный кабинет']]
     update.message.reply_text(
-        f'О компании трали вали\n',
+        '''
+ХРАНЕНИЕ ЛИЧНЫЙ ВЕЩЕЙ
+Сервис SELF_STORAGE предлагает услуги по хранению вещей для частных лиц.\n
+Мы заберём ваши вещи на наш склад, сохраним и
+привезём обратно в **любую точку Москвы.**''',
         reply_markup=ReplyKeyboardMarkup(
             reply_keyboard, one_time_keyboard=True)
     )
@@ -142,10 +153,59 @@ def about(update: Update, context: CallbackContext) -> int:
 
 
 def rules(update: Update, context: CallbackContext) -> int:
-    user = update.message.from_user
-    reply_keyboard = [['Личный кабинет'], ['Тарифы'], ['Список запрещенных вещей']]
+    """Sevice rules"""
+    reply_keyboard = [['Тарифы'],
+                      ['Список запрещенных вещей'],
+                      ['Личный кабинет']]
     update.message.reply_text(
-        f'Здесь указаны правила сервиса\n',
+        '''Хранение в компании Кладовкин - это легко и удобно.
+
+Все , что Вам нужно сделать, это 4 простых шага:
+
++ Выберите размер бокса
++ Позвоните и договоритесь о времени Вашего визита в центр хранения Кладовкин
++ Упакуйте свои вещи
++ Перевезите их на Self Storage
+
+Шаг 1. Выберите бокс для хранения
+
+Выберите размер бокса
+Мы предлагаем площади от 1 до 20 квадратных метров.
+Разобраться в том, какой размер бокса Вам нужен,\
+легко с нашей оценкой размера. Он сделает все расчеты за вас.
+Кроме того, вы можете получить совет от одного из наших экспертов.
+Звоните: 8 (495) 181-55-45
+
+Если у вас окажется больше или меньше вещей для хранения, \
+чем предполагалось изначально, не волнуйтесь, мы предложим Вам подходящий бокс.
+Вы всегда можете поменять свой бокс на бокс большего или меньшего размера.
+
+Шаг 2. Зарезервируйте бокс
+
+Когда вы резервируете свое помещение по телефону, вы также резервируете\
+его цену и специальные предложения.
+Мы будем держать бронь для Вас в течение 3-х дней.
+Мы не берем оплату за бронирование. \
+Вам даже не нужно давать нам кредитную карту для бронирования - \
+достаточно вашего имени и номера телефона.
+Если у вас изменяться планы Вы можете изменить или\
+отменить бронирование в любое время.
+
+Шаг 3. Упакуйте свои вещи
+
+Правильно упакованные вещи, сделают ваш переезд более комфортным и удобным.
+Узнайте, как упаковать более легко, следуя нашим советам по упаковке.
+
+Шаг 4. Доставка и оформление договора
+
+Наши специалисты встретят Вас на складе, и максимально \
+быстро и комфортно организуют процесс разгрузки и \
+оформления необходимых документов.
+Процесс оформления договора займет не более 10 минут, \
+а оборудованная зона разгрузки позволит Вам быстро \
+и без труда переместить вещи в бокс.
+
+''',
         reply_markup=ReplyKeyboardMarkup(
             reply_keyboard, one_time_keyboard=True)
     )
@@ -153,10 +213,26 @@ def rules(update: Update, context: CallbackContext) -> int:
 
 
 def prohobited(update: Update, context: CallbackContext) -> int:
-    user = update.message.from_user
-    reply_keyboard = [['Личный кабинет'], ['Тарифы'], ['Список запрещенных вещей']]
+    """prohibited things"""
+    reply_keyboard = [['Тарифы'], ['Правила сервиса'], ['Личный кабинет'], ]
     update.message.reply_text(
-        f'Здесь список запрещенных веществ\n',
+        '''
+Мы не примем на Self_Storage:
+• скоропортящиеся продукты;
+• ювелирные изделия;
+• Воспламеняющиеся и взрывоопасные вещества;
+• предметы искусства и другие вещи, которые\
+ требуют специальных условий хранения;
+• электронику (айфоны, айпэды и другие устройства,
+излучающие электромагнитные волны и передающие информацию);
+• химические и горюче-смазочные вещества;
+• промышленные и бытовые краски в негерметичной \
+упаковке или ранее вскрытой упаковке;
+• жидкости, кроме закрытых герметично;
+• наркотики, оружие, боеприпасы и другие вещи, \
+запрещенные законом РФ или подлежащие изъятию у владельца по решению суда;
+• растения;
+• животных или чучела животных.''',
         reply_markup=ReplyKeyboardMarkup(
             reply_keyboard, one_time_keyboard=True)
     )
@@ -164,33 +240,32 @@ def prohobited(update: Update, context: CallbackContext) -> int:
 
 
 def tariffs(update: Update, context: CallbackContext) -> int:
-    user = update.message.from_user
-    reply_keyboard = [['Оформить новый заказ'], ['Личный кабинет'], ['Правила сервиса'], ['Список запрещенных вещей']]
+    """Service Tariffs"""
+    reply_keyboard = [['Оформить новый заказ'],
+                      ['Правила сервиса'],
+                      ['Список запрещенных вещей'],
+                      ['Личный кабинет']]
     update.message.reply_text(
-        f'''Тарифы, описание и цена
+        '''Тарифы, описание и цена
 
-Мотоцикл S (до 200 куб. см) — 1500 руб. в мес.
-Мотоцикл M (от 201 до 1200 куб. см) — 2500 руб. в мес.
-Мотоцикл L (от 1201 куб. см) — 4000 руб. в мес.
+**Мотоцикл S** (до 200 куб. см) — 1500 руб. в мес.
+**Мотоцикл M** (от 201 до 1200 куб. см) — 2500 руб. в мес.
+**Мотоцикл L** (от 1201 куб. см) — 4000 руб. в мес.
 
-Сезонное хранение шин — 499 руб. в мес.
+**Сезонное хранение шин** — 499 руб. в мес.
 
-ТарифШкаф  = 5 коробок Чердака) — 
+**ТарифШкаф**  = 5 коробок Чердака) —
 990 руб. в мес.
 
-Тариф Балкон = 15 коробок Чердака) — 
+**Тариф Балкон** = 15 коробок Чердака) —
 1990 руб. в мес.
-
-Тариф Кладовка = 30 коробок Чердака) — 
+**Тариф Кладовка** = 30 коробок Чердака) —
 3490 руб. в мес.
-
-Тариф Комната  = 60 коробок Чердака) — 
+**Тариф Комната**  = 60 коробок Чердака) —
 6490 руб. в мес.
-
-Тариф Гараж  = 90 коробок Чердака) — 8990 руб. в мес.
-Тариф Чердак = 180 коробок Чердака) — 15840 руб. в мес.
+**Тариф Гараж**  = 90 коробок Чердака) — 8990 руб. в мес.
+**Тариф Чердак** = 180 коробок Чердака) — 15840 руб. в мес.
 При превышении тарифа «Чердак» + 1000 руб. за 1 куб. м.
-
 ''',
         reply_markup=ReplyKeyboardMarkup(
             reply_keyboard, one_time_keyboard=True)
@@ -200,10 +275,9 @@ def tariffs(update: Update, context: CallbackContext) -> int:
 
 def orders(update: Update, context: CallbackContext) -> int:
     print(f'Вы в моих заказах {update}')
-    user = update.message.from_user
     reply_keyboard = [['Мои хранения']]
     update.message.reply_text(
-        f'вы в моих заказах\n',
+        'вы в моих заказах\n',
         reply_markup=ReplyKeyboardMarkup(
             reply_keyboard, one_time_keyboard=True)
     )
@@ -213,9 +287,12 @@ def orders(update: Update, context: CallbackContext) -> int:
 def cancel(update: Update, context: CallbackContext) -> int:
     """Cancels and ends the conversation."""
     user = update.message.from_user
-    logger.info("User %s canceled the conversation.", user.first_name)
+    logger.info("User %s canceled the conversation.",
+                user.first_name
+                )
     update.message.reply_text(
-        'Bye! I hope we can talk again some day.', reply_markup=ReplyKeyboardRemove()
+        'Bye! I hope we can talk again some day.',
+        reply_markup=ReplyKeyboardRemove()
     )
 
     return ConversationHandler.END
@@ -235,22 +312,37 @@ def main() -> None:
     conv_handler = ConversationHandler(
         entry_points=[CommandHandler('start', start)],
         states={
-            AGREEMENT: [MessageHandler(Filters.regex('^(Далее)$'), agreement)],
-            GET_NUMBER: [MessageHandler(Filters.contact, get_phone)],
-            GET_NAME: [MessageHandler(Filters.text & ~Filters.command, get_name)],
-            MENU: [MessageHandler(Filters.regex('^(О сервисе)$'), about),
-                   MessageHandler(Filters.regex('^(Правила сервиса)$'), rules),
-                   MessageHandler(Filters.regex('^(Создать новый заказ)$'), about),
-                   MessageHandler(Filters.regex('^(Мои хранения)$'), orders),
-                   MessageHandler(Filters.regex('^(Тарифы)$'), tariffs),
+            AGREEMENT: [MessageHandler(Filters.regex('^(Далее)$'),
+                                       agreement)],
+            GET_NUMBER: [MessageHandler(Filters.contact,
+                                        get_phone)],
+            GET_NAME: [MessageHandler(Filters.text & ~Filters.command,
+                                      get_name)],
+            MENU: [MessageHandler(Filters.regex('^(О сервисе)$'),
+                                  about),
+                   MessageHandler(Filters.regex('^(Правила сервиса)$'),
+                                  rules),
+                   MessageHandler(Filters.regex('новый заказ'),
+                                  about),
+                   MessageHandler(Filters.regex('^(Мои хранения)$'),
+                                  orders),
+                   MessageHandler(Filters.regex('запрещенных'),
+                                  prohobited),
+                   MessageHandler(Filters.regex('^(Тарифы)$'),
+                                  tariffs),
                    CommandHandler('menu', menu),
-                   MessageHandler(Filters.regex('^(Приступим!)$'), menu),
-                   MessageHandler(Filters.regex('^(Оформить новый заказ)$'), new)
+                   MessageHandler(Filters.regex('кабинет'),
+                                  menu),
+                   MessageHandler(Filters.regex('^(Оформить новый заказ)$'),
+                                  new)
                    ],
-            ORDERS: [CommandHandler('orders', orders)],
-            ADRESS: [MessageHandler(Filters.text & ~Filters.command, get_adress)]
+            ORDERS: [CommandHandler('orders',
+                                    orders)],
+            ADRESS: [MessageHandler(Filters.text & ~Filters.command,
+                                    get_adress)]
         },
-        fallbacks=[CommandHandler('cancel', cancel)],
+        fallbacks=[CommandHandler('cancel',
+                                  cancel)],
     )
 
     dispatcher.add_handler(conv_handler)
