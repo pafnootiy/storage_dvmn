@@ -2,12 +2,21 @@
 
 import logging
 import os
+import django
+
+os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'storage_dvmn.settings')
+django.setup()
 
 from dotenv import load_dotenv
-from telegram import (KeyboardButton, ReplyKeyboardMarkup, ReplyKeyboardRemove,
-                      Update)
-from telegram.ext import (CallbackContext, CommandHandler, ConversationHandler,
-                          Filters, MessageHandler, Updater)
+from telegram import (KeyboardButton, ShippingOption, ReplyKeyboardMarkup, ReplyKeyboardRemove,
+                      Update, LabeledPrice)
+from telegram.ext import (CallbackContext,  ContextTypes, CommandHandler, ConversationHandler,
+                          Filters, MessageHandler, Updater, PreCheckoutQueryHandler,
+                          ShippingQueryHandler)
+
+from catalog.models import User, Order, Tariff, get_db_tariff, update_db_order, update_db_user, \
+    create_db_user, create_db_order, check_if_agreement, get_db_user
+
 
 # Enable logging
 logging.basicConfig(
@@ -18,14 +27,11 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 AGREEMENT, GET_NUMBER, GET_NAME, MENU, ORDERS, ORDER_ADDRESS, ORDER_NEW, \
-    ORDER_APPROX_SIZE, ORDER_DATE, ORDER_APPROVE, ORDER_SIZE, \
-    ORDER_SEND = range(12)
+GET_TARIFF, ORDER_DATE, ORDER_APPROVE, ORDER_SIZE, \
+ORDER_SEND, CHECKOUT = range(13)
 
 
 def start(update: Update, context: CallbackContext) -> int:
-    """Starts the conversation and asks the user about their gender."""
-
-    print(update)
     reply_keyboard = [['Далее']]
     update.message.reply_text(
         'Добро пожаловать в сервис SELF_STORAGE!\n'
@@ -35,26 +41,25 @@ def start(update: Update, context: CallbackContext) -> int:
             reply_keyboard, one_time_keyboard=True
         ),
     )
-
-    return AGREEMENT
-
+    if not check_if_agreement(update):
+        return AGREEMENT
+    return MENU
 
 def agreement(update: Update, context: CallbackContext) -> int:
-    # if not check_if_agreement(user.id):
-    # create_db_user(tg_id=user.id)
+    create_db_user(update)
+    update_db_user(tg_id=update.message.chat.id, agreement=True)
     update.message.reply_text(
-        'Давайте знакомиться! Как мне к Вам обращаться?\n'
+        'Давайте знакомиться! Как мне к Вам обращаться?\n\n'
         'ВНИМАНИЕ! Отправляя данные вы соглашаетесь '
         'с обработкой персональных данных.\n'
         'Подробнее об этом по ссылке:\n'
-        'https//agreement.ru', reply_markup=ReplyKeyboardRemove()
+        'https//agreement.ru/agr.pdf', reply_markup=ReplyKeyboardRemove()
     )
     return GET_NAME
     # return MAIN
 
 
 def get_phone(update: Update, context: CallbackContext) -> int:
-    """Get user number"""
     user = update.message.from_user
     print(update)
     contact_keyboard = KeyboardButton('Перейти в личный кабинет ➡️')
@@ -72,7 +77,7 @@ def get_phone(update: Update, context: CallbackContext) -> int:
 
 
 def get_name(update: Update, context: CallbackContext) -> int:
-    """Get user name"""
+    update_db_user(tg_id=update.message.chat.id, name=update.message.text)
     user = update.message.from_user
     contact_keyboard = KeyboardButton('Отправить свой номер',
                                       request_contact=True
@@ -92,13 +97,11 @@ def get_name(update: Update, context: CallbackContext) -> int:
 
 
 def menu(update: Update, context: CallbackContext) -> int:
-    print(f'Вы в меню {update}')
-    # if not check_if_agreement(user.id):
-    # create_db_user(tg_id=user.id)
+    user = get_db_user(update)
     reply_keyboard = [['Новый заказ'], ['Мои хранения'], ['О сервисе']]
     update.message.reply_text(
-        'Личный кабинет Алексендра Распа\n\n'
-        'Все боксов арендовано: 5\n'
+        f'Личный кабинет: {user.name}\n\n'
+        f'Всего хранений: 5\n'
         'Ближайшая оплата: 24.12.2020\n'
         'Чтобы вы хотели сейчас сделать?',
         reply_markup=ReplyKeyboardMarkup(
@@ -108,11 +111,11 @@ def menu(update: Update, context: CallbackContext) -> int:
 
 
 def new(update: Update, context: CallbackContext) -> int:
+    context.user_data['order_id'] = create_db_order(update)
     reply_keyboard = [['Привезу сам. Посмотреть адреса складов'],
                       ['Хочу, чтобы забрал курьер'],
                       ['Тарифы'],
                       ['Личный кабинет']]
-    print(update)
     update.message.reply_text(
         '''
 ОФОРМИТЬ НОВЫЙ ЗАКАЗ
@@ -130,12 +133,45 @@ def new(update: Update, context: CallbackContext) -> int:
 
 
 def selfstorage(update: Update, context: CallbackContext) -> int:
-    reply_keyboard = [['Хочу, чтобы забрал курьер'],
-                      ['Тарифы'],
-                      ['Назад']]
+    print(context.user_data)
+    reply_keyboard = [['Склад на Ленинградке'],
+                      ['Склад на Рязанке'],
+                      ['Склад на Варшавке']]
     update.message.reply_text(
         '''
-Здесь адреса складов''',
+АДРЕСА СКЛАДОВ
+
+СКЛАД НА Ленинградке
+Ленинградское шоссе, 54
+Режим работы: 
+
+Ежедневно
+c 08.00 - 22.00
+
+Схема проезда:
+https://yandex.ru/maps/-/CCUNm-QpGB
+
+СКЛАД НА ВАРШАВКЕ
+Варшавское шоссе, 121
+Режим работы: 
+
+Ежедневно
+c 08.00 - 22.00
+
+Схема проезда:
+https://yandex.ru/maps/-/CCUNm-QpGB
+
+СКЛАД НА Рязанке
+Рязанское шоссе, 123
+Режим работы: 
+
+Ежедневно
+c 08.00 - 22.00
+
+Схема проезда:
+https://yandex.ru/maps/-/CCUNm-QpGB
+
+Выберите подходящий склад:''',
         reply_markup=ReplyKeyboardMarkup(
             reply_keyboard, one_time_keyboard=True)
     )
@@ -143,10 +179,6 @@ def selfstorage(update: Update, context: CallbackContext) -> int:
 
 
 def get_order_adress(update: Update, context: CallbackContext) -> int:
-    """Get adress"""
-    # order_id = create_db_order(tg_id=used.id)
-    # user_data
-    # update_db_order(id=order_id, name=user.name)
     update.message.reply_text('Введите адрес, с которого надо забрать груз\n'
                               'Пример команды:\n\n'
                               'Красная площадь, дом 3, кв 1')
@@ -155,62 +187,21 @@ def get_order_adress(update: Update, context: CallbackContext) -> int:
 
 
 def get_order_date(update: Update, context: CallbackContext) -> int:
-    """Get addres"""
+    print(context.user_data)
+    id = context.user_data['order_id']
+    update_db_order(id=id, address=update.message.text)
     user = update.message.from_user
     # order_id = create_db_order(tg_id=used.id)
     # user_data
     # update_db_order(id=order_id, name=user.name)
-    logger.info("Name of %s: %s", user.first_name, update.message.text)
+    logger.info("Адрес of %s: %s", user.first_name, update.message.text)
     update.message.reply_text('Введите удобную дату и время доставки\n'
                               'Пример команды:\n\n'
                               '23.12 с 18:00-23:00')
-
-    return ORDER_APPROX_SIZE
-
-
-def get_order_approx_size(update: Update, context: CallbackContext) -> int:
-    """Get addres"""
-    reply_keyboard = [['Легковой авто'],
-                      ['Газель'],
-                      ['Мега-газель (несколько боксов)']]
-    update.message.reply_text(
-        '''
-Укажите ориентировочный размер груза:
-
-Легковой: до 5 коробок 1х1х1 метра
-Газель: до 4х3х2 метра
-Мега-Газель: до 6х3х2 метра
-
-Насколько у вас много барахла?''',
-        reply_markup=ReplyKeyboardMarkup(
-            reply_keyboard, one_time_keyboard=True)
-    )
-
-    print(f'Размер груза: {update.message.reply_text}')
-    return ORDER_APPROVE
+    return GET_TARIFF
 
 
-def get_order_approve(update: Update, context: CallbackContext) -> int:
-    """Get addres"""
-    reply_keyboard = [['Отправить заказ'],
-                      ['Изменить (не работает пока)'],
-                      ['Отменить (не работает пока)']]
-    update.message.reply_text(
-        '''
-ПРОВЕРЬТЕ ДАННЫЕ ЗАКАЗА
-
-Адрес: {{order.adress}}
-Дата: {{order.date}}
-Приблизительный размер: {{order.app_size}}
-
-        ''',
-        reply_markup=ReplyKeyboardMarkup(
-            reply_keyboard, one_time_keyboard=True)
-    )
-    return ORDER_SEND
-
-
-def send_order(update: Update, context: CallbackContext) -> int:
+def send_order_success(update: Update, context: CallbackContext) -> int:
     reply_keyboard = [['Вернуться в личный кабинет'],
                       ['Оформить новый заказ']]
     update.message.reply_text(
@@ -224,6 +215,100 @@ def send_order(update: Update, context: CallbackContext) -> int:
             reply_keyboard, one_time_keyboard=True)
     )
     return MENU
+
+
+def choose_storage(update:Update, context: CallbackContext):
+    if update.message.text =='Склад на Ленинградке':
+        context.user_data['storage'] = 1
+    if update.message.text =='Склад на Рязанке':
+        context.user_data['storage'] = 2
+    if update.message.text =='Склад на Варшавке':
+        context.user_data['storage'] = 3
+
+
+
+def get_tariff(update: Update, context: CallbackContext):
+    id = context.user_data['order_id']
+    print(context.user_data)
+    update_db_order(id=id, address=update.message.text)
+    choose_storage(update=update, context=context)
+    print(context.user_data)
+    reply_keyboard = [['Тариф Балкон - 1890 руб'],
+                      ['Тариф Балкон - 3490 руб'],
+                      ['Тариф Балкон - 8990 руб']]
+    update.message.reply_text(
+        '''
+Выберите подходящий тариф 
+Срок хранения - 30 дней
+
+ТАРИФЫ
+
+1 коробка имеет размер 50х50х50 см
+
+**Тариф Балкон** = 15 коробок —
+1990 руб. в мес.
+
+**Тариф Кладовка** = 30 коробок —
+3490 руб. в мес.
+
+**Тариф Гараж**  = 90 коробок — 
+8990 руб. в мес.
+
+''',
+        reply_markup=ReplyKeyboardMarkup(
+            reply_keyboard, one_time_keyboard=True)
+    )
+    return ORDER_NEW
+
+def get_tariff_id(update, context):
+    if update.message.text == 'Тариф Балкон - 1890 руб':
+        context.user_data['tariff_id'] = 1
+    if update.message.text == 'Тариф Балкон - 3490 руб':
+        context.user_data['tariff_id'] = 2
+    if update.message.text == 'Тариф Балкон - 8990 руб':
+        context.user_data['tariff_id'] = 3
+
+
+def send_invoice(update: Update, context: CallbackContext) -> None:
+    get_tariff_id(update=update, context=context)
+    tariff_id = context.user_data['tariff_id']
+    tariff = get_db_tariff(tariff_id)
+    chat_id = update.message.chat_id
+    print(context.user_data)
+    title = "SELF-STORAGE"
+    description = f"Оплата тарифа {tariff.title} - {tariff.days} дней"
+    payload = "Custom-Payload"
+    provider_token = "381764678:TEST:39427"
+    currency = "RUB"
+    prices = [LabeledPrice(f'{tariff.title}-{tariff.days} дней', tariff.price * 100)]
+    context.bot.send_invoice(
+        chat_id,
+        title,
+        description,
+        payload,
+        provider_token,
+        currency,
+        prices,
+        need_name=False,
+        need_phone_number=False,
+        need_email=False,
+        is_flexible=True,
+    )
+
+
+def precheckout_callback(update: Update, _: CallbackContext) -> None:
+    query = update.pre_checkout_query
+    if query.invoice_payload != 'Custom-Payload':
+        query.answer(ok=False, error_message="Something went wrong...")
+    else:
+        query.answer(ok=True)
+
+
+def successful_payment_callback(update: Update, _: CallbackContext) -> None:
+    print('Ваш заказ оформлен')
+    print(update)
+    print(context.bot_data)
+    update.message.reply_text("Thank you for your payment!")
 
 
 def about(update: Update, context: CallbackContext) -> int:
@@ -306,7 +391,6 @@ def rules(update: Update, context: CallbackContext) -> int:
 
 
 def prohobited(update: Update, context: CallbackContext) -> int:
-    """prohibited things"""
     reply_keyboard = [['Тарифы'], ['Правила сервиса'], ['Личный кабинет'], ]
     update.message.reply_text(
         '''
@@ -333,32 +417,24 @@ def prohobited(update: Update, context: CallbackContext) -> int:
 
 
 def tariffs(update: Update, context: CallbackContext) -> int:
-    """Service Tariffs"""
     reply_keyboard = [['Оформить новый заказ'],
                       ['Правила сервиса'],
                       ['Список запрещенных вещей'],
                       ['Личный кабинет']]
     update.message.reply_text(
-        '''Тарифы, описание и цена
+        '''
+ТАРИФЫ
 
-**Мотоцикл S** (до 200 куб. см) — 1500 руб. в мес.
-**Мотоцикл M** (от 201 до 1200 куб. см) — 2500 руб. в мес.
-**Мотоцикл L** (от 1201 куб. см) — 4000 руб. в мес.
+1 коробка имеет размер 50х50х50 см
 
-**Сезонное хранение шин** — 499 руб. в мес.
-
-**ТарифШкаф**  = 5 коробок Чердака) —
-990 руб. в мес.
-
-**Тариф Балкон** = 15 коробок Чердака) —
+**Тариф Балкон** = 15 коробок —
 1990 руб. в мес.
-**Тариф Кладовка** = 30 коробок Чердака) —
+
+**Тариф Кладовка** = 30 коробок —
 3490 руб. в мес.
-**Тариф Комната**  = 60 коробок Чердака) —
-6490 руб. в мес.
-**Тариф Гараж**  = 90 коробок Чердака) — 8990 руб. в мес.
-**Тариф Чердак** = 180 коробок Чердака) — 15840 руб. в мес.
-При превышении тарифа «Чердак» + 1000 руб. за 1 куб. м.
+
+**Тариф Гараж**  = 90 коробок — 
+8990 руб. в мес.
 ''',
         reply_markup=ReplyKeyboardMarkup(
             reply_keyboard, one_time_keyboard=True)
@@ -367,18 +443,24 @@ def tariffs(update: Update, context: CallbackContext) -> int:
 
 
 def orders(update: Update, context: CallbackContext) -> int:
-    print(f'Вы в моих заказах {update}')
-    reply_keyboard = [['Мои хранения']]
+    user = User.objects.get(tg_id=update.message.chat.id)
+    orders = Order.objects.filter(user=user)
+    for order in orders:
+        context.bot.send_photo(chat_id=update.effective_chat.id, photo='https://www.akm.ru/upload/iblock/cf1/QR_kod.jpg')
+        context.bot.send_message(chat_id=update.effective_chat.id, text=f'Заказ номер {order.id}'
+                                                                        f'\n'
+                                                                        f'Тариф: Чердак'
+                                                                        f'Оплачен до: 03.08')
+    reply_keyboard = [['Личный кабинет']]
     update.message.reply_text(
-        'вы в моих заказах\n',
+        'Вернуться в личный кабинет?',
         reply_markup=ReplyKeyboardMarkup(
             reply_keyboard, one_time_keyboard=True)
     )
-    return ORDERS
+    return MENU
 
 
 def cancel(update: Update, context: CallbackContext) -> int:
-    """Cancels and ends the conversation."""
     user = update.message.from_user
     logger.info("User %s canceled the conversation.",
                 user.first_name
@@ -401,6 +483,10 @@ def main() -> None:
     # Get the dispatcher to register handlers
     dispatcher = updater.dispatcher
 
+    dispatcher.add_handler(PreCheckoutQueryHandler(precheckout_callback))
+    dispatcher.add_handler(MessageHandler(Filters.successful_payment, successful_payment_callback))
+
+
     # Add conversation handler with the states GENDER, PHOTO, LOCATION and BIO
     conv_handler = ConversationHandler(
         entry_points=[CommandHandler('start', start),
@@ -408,7 +494,8 @@ def main() -> None:
                       CommandHandler('tariffs', tariffs),
                       CommandHandler('rules', rules),
                       CommandHandler('prohobited', prohobited),
-                      CommandHandler('new', new)],
+                      CommandHandler('new', new),
+                      CommandHandler('check_out', send_invoice)],
         states={
             AGREEMENT: [MessageHandler(Filters.regex('^(Далее)$'),
                                        agreement)],
@@ -429,8 +516,9 @@ def main() -> None:
                    MessageHandler(Filters.regex('^(Тарифы)$'),
                                   tariffs),
                    CommandHandler('menu', menu),
+                   MessageHandler(Filters.regex('Далее'), menu),
                    MessageHandler(Filters.regex('кабинет'),
-                                  menu),
+                                  menu)
                    ],
             ORDERS: [CommandHandler('orders',
                                     orders)],
@@ -443,20 +531,33 @@ def main() -> None:
                         MessageHandler(Filters.regex('курьер'),
                                        get_order_adress),
                         MessageHandler(Filters.regex('^(Тарифы)$'),
-                                       tariffs)
+                                       tariffs),
+                        MessageHandler(Filters.regex('Склад на Ленинградке'),
+                                       get_tariff),
+                        MessageHandler(Filters.regex('Склад на Рязанке'),
+                                       get_tariff),
+                        MessageHandler(Filters.regex('Склад на Варшавке'),
+                                       get_tariff),
+                        MessageHandler(Filters.regex('Тариф Балкон - 1890 руб'),
+                                       send_invoice),
+                        MessageHandler(Filters.regex('Тариф Балкон - 3490 руб'),
+                                       send_invoice),
+                        MessageHandler(Filters.regex('Тариф Балкон - 8990 руб'),
+                                       send_invoice),
+                        CommandHandler('start',
+                                       start),
                         ],
+            CHECKOUT: [MessageHandler(Filters.text & ~Filters.command,
+                                        send_invoice)
+                       ],
             ORDER_ADDRESS: [MessageHandler(Filters.text & ~Filters.command,
                                            get_order_adress)],
             ORDER_DATE: [MessageHandler(Filters.text & ~Filters.command,
                                         get_order_date)],
-            ORDER_APPROX_SIZE: [MessageHandler(Filters.text & ~Filters.command,
-                                               get_order_approx_size)],
-            ORDER_APPROVE: [MessageHandler(Filters.text & ~Filters.command,
-                                           get_order_approve)],
-            ORDER_SIZE: [MessageHandler(Filters.text & ~Filters.command,
-                                        get_order_approx_size)],
+            GET_TARIFF: [MessageHandler(Filters.text & ~Filters.command,
+                                               get_tariff)],
             ORDER_SEND: [MessageHandler(Filters.regex('тправить заказ'),
-                                        send_order)
+                                        send_order_success)
                          ]
         },
         fallbacks=[CommandHandler('cancel',
