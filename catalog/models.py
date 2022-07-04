@@ -70,7 +70,6 @@ class Order(models.Model):
         return f'Заказ {self.pk}'
 
 
-
 def get_db_tariff(tariff_id):
     tariff = Tariff.objects.get(pk=tariff_id)
     return tariff
@@ -78,7 +77,7 @@ def get_db_tariff(tariff_id):
 
 def get_db_storage(storage_id):
     storage_id = Storage.objects.get(pk=storage_id)
-    return storage
+    return storage_id
 
 
 def create_db_user(update):
@@ -131,6 +130,7 @@ def update_db_order(id, address=None, tariff=None, paid_till=None,
         order.deleted = deleted
     print(f'{order.id} updated')
     order.save()
+
 
 def check_if_agreement(update):
     return User.objects.filter(tg_id=update.message.chat.id).exists()
