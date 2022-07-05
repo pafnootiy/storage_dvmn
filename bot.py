@@ -10,9 +10,11 @@ django.setup()
 
 from dotenv import load_dotenv
 from telegram import (KeyboardButton, LabeledPrice, ReplyKeyboardMarkup,
-                      ReplyKeyboardRemove, ShippingOption, Update)
+                      ReplyKeyboardRemove, ShippingOption, Update, InlineKeyboardButton,
+                      InlineKeyboardMarkup)
 from telegram.ext import (CallbackContext, CommandHandler, ContextTypes,
-                          ConversationHandler, Filters, MessageHandler,
+                          ConversationHandler, Filters, CallbackQueryHandler,
+                          MessageHandler,
                           PreCheckoutQueryHandler, ShippingQueryHandler,
                           Updater)
 
@@ -41,7 +43,7 @@ def start(update: Update, context: CallbackContext) -> int:
         'Мы делаем хранение вещей удобным и доступным.\n\n'
         'Приступим?',
         reply_markup=ReplyKeyboardMarkup(
-            reply_keyboard, one_time_keyboard=True
+            reply_keyboard, resize_keyboard=True, one_time_keyboard=True
         ),
     )
     if not check_if_agreement(update):
@@ -72,7 +74,7 @@ def get_phone(update: Update, context: CallbackContext) -> int:
         'Спасибо! \n'
         'Ваш личный кабинет создан 👍',
         reply_markup=ReplyKeyboardMarkup(
-            reply_keyboard,
+            reply_keyboard, resize_keyboard=True,
             one_time_keyboard=True)
     )
     logger.info("Phone of %s: %s", user.username, update.message.text)
@@ -93,7 +95,7 @@ def get_name(update: Update, context: CallbackContext) -> int:
                               'Поделитесь, пожалуйста, Вашим номером, '
                               'чтобы мы могли связаться с вами',
                               reply_markup=ReplyKeyboardMarkup(
-                                  reply_keyboard,
+                                  reply_keyboard, resize_keyboard=True,
                                   one_time_keyboard=True)
                               )
 
@@ -102,14 +104,16 @@ def get_name(update: Update, context: CallbackContext) -> int:
 
 def menu(update: Update, context: CallbackContext) -> int:
     user = get_db_user(update)
+    orders_qty = Order.objects.filter(user=user).count()
     reply_keyboard = [['Новый заказ'], ['Мои хранения'], ['О сервисе']]
     update.message.reply_text(
         f'Личный кабинет: {user.name}\n\n'
-        f'Всего хранений: 5\n'
-        'Ближайшая оплата: 24.12.2020\n'
+        f'Всего хранений: {orders_qty}\n'
+        '\n'
         'Чтобы вы хотели сейчас сделать?',
         reply_markup=ReplyKeyboardMarkup(
-            reply_keyboard, one_time_keyboard=True)
+            reply_keyboard, resize_keyboard=True,
+            one_time_keyboard=True)
     )
     return MENU
 
@@ -131,7 +135,8 @@ def new(update: Update, context: CallbackContext) -> int:
 
 Как действуем?''',
         reply_markup=ReplyKeyboardMarkup(
-            reply_keyboard, one_time_keyboard=True)
+            reply_keyboard, resize_keyboard=True,
+            one_time_keyboard=True)
     )
     return ORDER_NEW
 
@@ -153,7 +158,8 @@ def get_location(update: Update, context: CallbackContext) -> int:
 {nearest_storage.address}
 Ок?
 ''', reply_markup=ReplyKeyboardMarkup(
-        reply_keyboard, one_time_keyboard=True))
+        reply_keyboard, resize_keyboard=True,
+        one_time_keyboard=True))
     return ORDER_NEW
 
 
@@ -192,14 +198,15 @@ https://yandex.ru/maps/-/CCUNm-QpGB
 
 Выберите подходящий склад:''',
         reply_markup=ReplyKeyboardMarkup(
-            reply_keyboard, one_time_keyboard=True)
+            reply_keyboard, resize_keyboard=True,
+            one_time_keyboard=True)
     )
     print(update)
     return ORDER_NEW
 
 
 def get_order_adress(update: Update, context: CallbackContext) -> int:
-    update.message.reply_text('Введите адрес, с которого надо забрать груз\n'
+    update.message.reply_text('Введите адрес, с которого надо забрать груз\n\n'
                               'Пример команды:\n\n'
                               'Красная площадь, дом 3, кв 1')
 
@@ -275,7 +282,8 @@ def get_tariff(update: Update, context: CallbackContext):
 
 ''',
         reply_markup=ReplyKeyboardMarkup(
-            reply_keyboard, one_time_keyboard=True)
+            reply_keyboard, resize_keyboard=True,
+            one_time_keyboard=True)
     )
     return ORDER_NEW
 
@@ -287,6 +295,26 @@ def get_tariff_id(update, context):
         context.user_data['tariff_id'] = 2
     if update.message.text == 'Тариф Балкон - 8990 руб':
         context.user_data['tariff_id'] = 3
+
+
+def get_qr(update, context: CallbackContext):
+    print(update)
+    query = update.callback_query
+    order_id = query.data
+    print(query.message.chat.id)
+    # `CallbackQueries` требует ответа, даже если
+    # уведомление для пользователя не требуется, в противном
+    #  случае у некоторых клиентов могут возникнуть проблемы.
+    # смотри https://core.telegram.org/bots/api#callbackquery.
+    query.answer()
+    # редактируем сообщение, тем самым кнопки
+    # в чате заменятся на этот ответ.
+    qr_core_url = 'http://a1480.phobos.apple.com/us/r30/Purple3/v4/fb/59/cf/fb59cf06-' \
+                  '0cf9-fc66-7407-7773231070c9/pr_source.png?downloadKey=1413818465_' \
+                  '86a7cb3f5224397e9d01a712aa6cea91'
+    context.bot.send_message(query.message.chat.id, f'Заказ №{order_id}.\n'
+                                                    f'QR-код для получения')
+    context.bot.send_photo(query.message.chat.id, qr_core_url)
 
 
 def send_invoice(update: Update, context: CallbackContext) -> None:
@@ -347,7 +375,8 @@ def about(update: Update, context: CallbackContext) -> int:
 Мы заберём ваши вещи на наш склад, сохраним и
 привезём обратно в **любую точку Москвы.**''',
         reply_markup=ReplyKeyboardMarkup(
-            reply_keyboard, one_time_keyboard=True)
+            reply_keyboard, resize_keyboard=True,
+            one_time_keyboard=True)
     )
     return MENU
 
@@ -407,7 +436,8 @@ def rules(update: Update, context: CallbackContext) -> int:
 
 ''',
         reply_markup=ReplyKeyboardMarkup(
-            reply_keyboard, one_time_keyboard=True)
+            reply_keyboard, resize_keyboard=True,
+            one_time_keyboard=True)
     )
     return MENU
 
@@ -433,7 +463,8 @@ def prohobited(update: Update, context: CallbackContext) -> int:
 • растения;
 • животных или чучела животных.''',
         reply_markup=ReplyKeyboardMarkup(
-            reply_keyboard, one_time_keyboard=True)
+            reply_keyboard, resize_keyboard=True,
+            one_time_keyboard=True)
     )
     return MENU
 
@@ -459,7 +490,8 @@ def tariffs(update: Update, context: CallbackContext) -> int:
 8990 руб. в мес.
 ''',
         reply_markup=ReplyKeyboardMarkup(
-            reply_keyboard, one_time_keyboard=True)
+            reply_keyboard, resize_keyboard=True,
+            one_time_keyboard=True)
     )
     return MENU
 
@@ -468,19 +500,22 @@ def orders(update: Update, context: CallbackContext) -> int:
     user = User.objects.get(tg_id=update.message.chat.id)
     orders = Order.objects.filter(user=user)
     for order in orders:
-        qr_url = 'https://www.akm.ru/upload/iblock/cf1/QR_kod.jpg'
-        context.bot.send_photo(chat_id=update.effective_chat.id,
-                               photo=qr_url)
-        context.bot.send_message(chat_id=update.effective_chat.id,
-                                 text=f'Заказ номер {order.id}'
-                                      f'\n'
-                                      f'Тариф: Чердак'
-                                      f'Оплачен до: 03.08')
+        keyboard = [
+            [
+                InlineKeyboardButton("Больше информации", callback_data=order.id),
+            ],
+        ]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        update.message.reply_text(f'Заказ номер {order.id}'
+                                  f'\n'
+                                  f'Тариф: Чердак'
+                                  f'Оплачен до: 03.08', reply_markup=reply_markup)
     reply_keyboard = [['Личный кабинет']]
     update.message.reply_text(
         'Вернуться в личный кабинет?',
         reply_markup=ReplyKeyboardMarkup(
-            reply_keyboard, one_time_keyboard=True)
+            reply_keyboard, resize_keyboard=True,
+            one_time_keyboard=True)
     )
     return MENU
 
@@ -511,7 +546,7 @@ def main() -> None:
     dispatcher.add_handler(PreCheckoutQueryHandler(precheckout_callback))
     dispatcher.add_handler(MessageHandler(Filters.successful_payment,
                                           successful_payment_callback))
-
+    dispatcher.add_handler(CallbackQueryHandler(get_qr))
     # Add conversation handler with the states GENDER, PHOTO, LOCATION and BIO
     conv_handler = ConversationHandler(
         entry_points=[CommandHandler('start', start),
