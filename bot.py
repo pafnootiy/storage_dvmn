@@ -586,7 +586,7 @@ def main() -> None:
             ORDER_DATE: [MessageHandler(Filters.text & ~Filters.command,
                                         get_order_date)],
             GET_TARIFF: [MessageHandler(Filters.text & ~Filters.command,
-                                        get_tariff)],
+                                        selfstorage)],
             ORDER_SEND: [MessageHandler(Filters.regex('тправить заказ'),
                                         send_order_success)
                          ]
