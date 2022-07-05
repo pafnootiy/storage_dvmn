@@ -54,27 +54,46 @@ class Order(models.Model):
                                null=True,
                                blank=True
                                )
+<<<<<<< HEAD
+=======
+    time = models.DateTimeField(auto_now=True)
+    approx_size = models.IntegerField(null=False)
+>>>>>>> main
     comment = models.TextField(max_length=200,
                                null=True,
                                blank=True
                                )
+<<<<<<< HEAD
     paid_till = models.DateTimeField(null=True)
     tariff = models.ForeignKey(Tariff, null=True, on_delete=models.CASCADE)
+=======
+    paid_till = models.DateTimeField(null=False)
+    tariff = models.IntegerField(null=False)
+>>>>>>> main
     size = models.CharField(max_length=200,
                             null=True,
                             blank=True
                             )
+<<<<<<< HEAD
     deleted = models.BooleanField(null=True)
+=======
+    deleted = models.BooleanField()
+>>>>>>> main
     qr_code = models.CharField(max_length=200,
                                null=True,
                                blank=False)
     status = models.CharField(max_length=200,
+<<<<<<< HEAD
                               null=True,
                               blank=True)
     storage = models.ForeignKey(Storage,
                                 on_delete=models.CASCADE,
                                 related_name='orders',
                                 null=True)
+=======
+                               null=True,
+                               blank=True)
+>>>>>>> main
 
     def __str__(self):
         return f'Заказ {self.pk}'
