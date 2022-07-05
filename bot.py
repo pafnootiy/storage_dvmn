@@ -105,14 +105,14 @@ def get_name(update: Update, context: CallbackContext) -> int:
 def menu(update: Update, context: CallbackContext) -> int:
     user = get_db_user(update)
     orders_qty = Order.objects.filter(user=user).count()
-    reply_keyboard = [['Новый заказ'], ['Мои хранения'], ['О сервисе']]
+    reply_keyboard = [['Новый заказ', 'Мои хранения'], ['О сервисе']]
     update.message.reply_text(
         f'Личный кабинет: {user.name}\n\n'
         f'Всего хранений: {orders_qty}\n'
         '\n'
         'Чтобы вы хотели сейчас сделать?',
         reply_markup=ReplyKeyboardMarkup(
-            reply_keyboard, resize_keyboard=True,
+            reply_keyboard, resize_keyboard=True, row_width=2,
             one_time_keyboard=True)
     )
     return MENU
@@ -326,7 +326,7 @@ def send_invoice(update: Update, context: CallbackContext) -> None:
     title = "SELF-STORAGE"
     description = f"Оплата тарифа {tariff.title} - {tariff.days} дней"
     payload = "Custom-Payload"
-    provider_token = "381764678:TEST:39427"
+    provider_token = "1832575495:TEST:d716d6144b02e9434eb14ddf6fdeca937cfb2d68881492ea202a42a41eabe886"
     currency = "RUB"
     prices = [LabeledPrice(f'{tariff.title}-{tariff.days} дней',
                            tariff.price * 100)]
@@ -345,7 +345,8 @@ def send_invoice(update: Update, context: CallbackContext) -> None:
     )
 
 
-def precheckout_callback(update: Update, _: CallbackContext) -> None:
+def precheckout_callback(update: Update, context: CallbackContext) -> None:
+    print('мы в пречекауте')
     query = update.pre_checkout_query
     if query.invoice_payload != 'Custom-Payload':
         query.answer(ok=False, error_message="Something went wrong...")
@@ -544,7 +545,7 @@ def main() -> None:
     dispatcher = updater.dispatcher
 
     dispatcher.add_handler(PreCheckoutQueryHandler(precheckout_callback))
-    dispatcher.add_handler(MessageHandler(Filters.successful_payment,
+    dispatcher.add_handler(MessageHandler(Filters.SUCCESSFUL_PAYMENT,
                                           successful_payment_callback))
     dispatcher.add_handler(CallbackQueryHandler(get_qr))
     # Add conversation handler with the states GENDER, PHOTO, LOCATION and BIO
