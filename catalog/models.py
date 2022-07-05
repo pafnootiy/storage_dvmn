@@ -33,12 +33,15 @@ class Tariff(models.Model):
 class Storage(models.Model):
     title = models.CharField(max_length=100)
     address = models.CharField(max_length=200)
+<<<<<<< Updated upstream
     lat = models.FloatField(max_length=30,
                             blank=False,
                             null=False)
     lon = models.FloatField(max_length=30,
                             blank=False,
                             null=False)
+=======
+>>>>>>> Stashed changes
 
     def __str__(self):
         return self.title
@@ -141,6 +144,7 @@ def update_db_order(id, address=None, tariff=None, paid_till=None,
 
 def check_if_agreement(update):
     return User.objects.filter(tg_id=update.message.chat.id).exists()
+<<<<<<< Updated upstream
 
 
 def get_nearest_storage(location):
@@ -160,3 +164,5 @@ def get_nearest_storage(location):
         if distance == min_distance:
             print(id)
             return id
+=======
+>>>>>>> Stashed changes
