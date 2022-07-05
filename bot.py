@@ -545,7 +545,7 @@ def main() -> None:
     dispatcher = updater.dispatcher
 
     dispatcher.add_handler(PreCheckoutQueryHandler(precheckout_callback))
-    dispatcher.add_handler(MessageHandler(Filters.SUCCESSFUL_PAYMENT,
+    dispatcher.add_handler(MessageHandler(Filters.successful_payment,
                                           successful_payment_callback))
     dispatcher.add_handler(CallbackQueryHandler(get_qr))
     # Add conversation handler with the states GENDER, PHOTO, LOCATION and BIO
