@@ -1,4 +1,5 @@
 from django.db import models
+from geopy.distance import geodesic as GD
 
 
 # Create your models here.
@@ -32,6 +33,12 @@ class Tariff(models.Model):
 class Storage(models.Model):
     title = models.CharField(max_length=100)
     address = models.CharField(max_length=200)
+    lat = models.FloatField(max_length=30,
+                            blank=False,
+                            null=False)
+    lon = models.FloatField(max_length=30,
+                            blank=False,
+                            null=False)
 
     def __str__(self):
         return self.title
@@ -134,3 +141,22 @@ def update_db_order(id, address=None, tariff=None, paid_till=None,
 
 def check_if_agreement(update):
     return User.objects.filter(tg_id=update.message.chat.id).exists()
+
+
+def get_nearest_storage(location):
+    storages = Storage.objects.all()
+    print(storages)
+    current_location = (location['latitude'], location['longitude'])
+    result = {}
+    for storage in storages:
+        storage_id = storage.id
+        storage_location = (storage.lat, storage.lon)
+        distance = GD(current_location, storage_location).km
+        result[storage_id] = distance
+    print(result)
+    min_distance = min(result.values())
+    print(f'min_distance {min_distance}')
+    for id, distance in result.items():  # for name, age in dictionary.iteritems():  (for Python 2.x)
+        if distance == min_distance:
+            print(id)
+            return id

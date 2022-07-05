@@ -2,21 +2,24 @@
 
 import logging
 import os
+
 import django
 
 os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'storage_dvmn.settings')
 django.setup()
 
 from dotenv import load_dotenv
-from telegram import (KeyboardButton, ShippingOption, ReplyKeyboardMarkup, ReplyKeyboardRemove,
-                      Update, LabeledPrice)
-from telegram.ext import (CallbackContext,  ContextTypes, CommandHandler, ConversationHandler,
-                          Filters, MessageHandler, Updater, PreCheckoutQueryHandler,
-                          ShippingQueryHandler)
+from telegram import (KeyboardButton, LabeledPrice, ReplyKeyboardMarkup,
+                      ReplyKeyboardRemove, ShippingOption, Update)
+from telegram.ext import (CallbackContext, CommandHandler, ContextTypes,
+                          ConversationHandler, Filters, MessageHandler,
+                          PreCheckoutQueryHandler, ShippingQueryHandler,
+                          Updater)
 
-from catalog.models import User, Order, Tariff, get_db_tariff, update_db_order, update_db_user, \
-    create_db_user, create_db_order, check_if_agreement, get_db_user
-
+from catalog.models import (Order, Storage, Tariff, User, check_if_agreement,
+                            create_db_order, create_db_user, get_db_tariff,
+                            get_db_user, get_nearest_storage, update_db_order,
+                            update_db_user)
 
 # Enable logging
 logging.basicConfig(
@@ -27,8 +30,8 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 AGREEMENT, GET_NUMBER, GET_NAME, MENU, ORDERS, ORDER_ADDRESS, ORDER_NEW, \
-GET_TARIFF, ORDER_DATE, ORDER_APPROVE, ORDER_SIZE, \
-ORDER_SEND, CHECKOUT = range(13)
+    GET_TARIFF, ORDER_DATE, ORDER_APPROVE, ORDER_SIZE, \
+    ORDER_SEND, CHECKOUT = range(13)
 
 
 def start(update: Update, context: CallbackContext) -> int:
@@ -44,6 +47,7 @@ def start(update: Update, context: CallbackContext) -> int:
     if not check_if_agreement(update):
         return AGREEMENT
     return MENU
+
 
 def agreement(update: Update, context: CallbackContext) -> int:
     create_db_user(update)
@@ -132,41 +136,56 @@ def new(update: Update, context: CallbackContext) -> int:
     return ORDER_NEW
 
 
+def get_location(update: Update, context: CallbackContext) -> int:
+    print(update)
+    location = update.message.location
+    nearest_storage_id = get_nearest_storage(location)
+    context.user_data['storage'] = nearest_storage_id
+    nearest_storage = Storage.objects.get(id=nearest_storage_id)
+    reply_keyboard = [['Ок! Выбрать этот склад'],
+                      ['Выбрать другой склад']
+                      ]
+
+    update.message.reply_text(f'''
+Ваш ближайший склад:
+{nearest_storage.title}
+По адресу:
+{nearest_storage.address}
+Ок?
+''', reply_markup=ReplyKeyboardMarkup(
+        reply_keyboard, one_time_keyboard=True))
+    return ORDER_NEW
+
+
 def selfstorage(update: Update, context: CallbackContext) -> int:
     print(context.user_data)
-    reply_keyboard = [['Склад на Ленинградке'],
+    location_keyboard = KeyboardButton('Определить ближайший автоматически',
+                                       request_location=True
+                                       )
+    reply_keyboard = [[location_keyboard],
+                      ['Склад на Ленинградке'],
                       ['Склад на Рязанке'],
                       ['Склад на Варшавке']]
     update.message.reply_text(
         '''
 АДРЕСА СКЛАДОВ
+Режим работы:
+Ежедневно c 08.00 - 22.00
 
 СКЛАД НА Ленинградке
 Ленинградское шоссе, 54
-Режим работы: 
-
-Ежедневно
-c 08.00 - 22.00
 
 Схема проезда:
 https://yandex.ru/maps/-/CCUNm-QpGB
 
 СКЛАД НА ВАРШАВКЕ
 Варшавское шоссе, 121
-Режим работы: 
-
-Ежедневно
-c 08.00 - 22.00
 
 Схема проезда:
 https://yandex.ru/maps/-/CCUNm-QpGB
 
 СКЛАД НА Рязанке
-Рязанское шоссе, 123
-Режим работы: 
-
-Ежедневно
-c 08.00 - 22.00
+Рязанский проспект, 79
 
 Схема проезда:
 https://yandex.ru/maps/-/CCUNm-QpGB
@@ -175,6 +194,7 @@ https://yandex.ru/maps/-/CCUNm-QpGB
         reply_markup=ReplyKeyboardMarkup(
             reply_keyboard, one_time_keyboard=True)
     )
+    print(update)
     return ORDER_NEW
 
 
@@ -217,14 +237,13 @@ def send_order_success(update: Update, context: CallbackContext) -> int:
     return MENU
 
 
-def choose_storage(update:Update, context: CallbackContext):
-    if update.message.text =='Склад на Ленинградке':
+def choose_storage(update: Update, context: CallbackContext):
+    if update.message.text == 'Склад на Ленинградке':
         context.user_data['storage'] = 1
-    if update.message.text =='Склад на Рязанке':
+    if update.message.text == 'Склад на Рязанке':
         context.user_data['storage'] = 2
-    if update.message.text =='Склад на Варшавке':
+    if update.message.text == 'Склад на Варшавке':
         context.user_data['storage'] = 3
-
 
 
 def get_tariff(update: Update, context: CallbackContext):
@@ -238,7 +257,7 @@ def get_tariff(update: Update, context: CallbackContext):
                       ['Тариф Балкон - 8990 руб']]
     update.message.reply_text(
         '''
-Выберите подходящий тариф 
+Выберите подходящий тариф
 Срок хранения - 30 дней
 
 ТАРИФЫ
@@ -251,7 +270,7 @@ def get_tariff(update: Update, context: CallbackContext):
 **Тариф Кладовка** = 30 коробок —
 3490 руб. в мес.
 
-**Тариф Гараж**  = 90 коробок — 
+**Тариф Гараж**  = 90 коробок —
 8990 руб. в мес.
 
 ''',
@@ -259,6 +278,7 @@ def get_tariff(update: Update, context: CallbackContext):
             reply_keyboard, one_time_keyboard=True)
     )
     return ORDER_NEW
+
 
 def get_tariff_id(update, context):
     if update.message.text == 'Тариф Балкон - 1890 руб':
@@ -280,7 +300,8 @@ def send_invoice(update: Update, context: CallbackContext) -> None:
     payload = "Custom-Payload"
     provider_token = "381764678:TEST:39427"
     currency = "RUB"
-    prices = [LabeledPrice(f'{tariff.title}-{tariff.days} дней', tariff.price * 100)]
+    prices = [LabeledPrice(f'{tariff.title}-{tariff.days} дней',
+                           tariff.price * 100)]
     context.bot.send_invoice(
         chat_id,
         title,
@@ -304,7 +325,8 @@ def precheckout_callback(update: Update, _: CallbackContext) -> None:
         query.answer(ok=True)
 
 
-def successful_payment_callback(update: Update, _: CallbackContext) -> None:
+def successful_payment_callback(update: Update,
+                                context: CallbackContext) -> None:
     print('Ваш заказ оформлен')
     print(update)
     print(context.bot_data)
@@ -433,7 +455,7 @@ def tariffs(update: Update, context: CallbackContext) -> int:
 **Тариф Кладовка** = 30 коробок —
 3490 руб. в мес.
 
-**Тариф Гараж**  = 90 коробок — 
+**Тариф Гараж**  = 90 коробок —
 8990 руб. в мес.
 ''',
         reply_markup=ReplyKeyboardMarkup(
@@ -446,11 +468,14 @@ def orders(update: Update, context: CallbackContext) -> int:
     user = User.objects.get(tg_id=update.message.chat.id)
     orders = Order.objects.filter(user=user)
     for order in orders:
-        context.bot.send_photo(chat_id=update.effective_chat.id, photo='https://www.akm.ru/upload/iblock/cf1/QR_kod.jpg')
-        context.bot.send_message(chat_id=update.effective_chat.id, text=f'Заказ номер {order.id}'
-                                                                        f'\n'
-                                                                        f'Тариф: Чердак'
-                                                                        f'Оплачен до: 03.08')
+        qr_url = 'https://www.akm.ru/upload/iblock/cf1/QR_kod.jpg'
+        context.bot.send_photo(chat_id=update.effective_chat.id,
+                               photo=qr_url)
+        context.bot.send_message(chat_id=update.effective_chat.id,
+                                 text=f'Заказ номер {order.id}'
+                                      f'\n'
+                                      f'Тариф: Чердак'
+                                      f'Оплачен до: 03.08')
     reply_keyboard = [['Личный кабинет']]
     update.message.reply_text(
         'Вернуться в личный кабинет?',
@@ -484,8 +509,8 @@ def main() -> None:
     dispatcher = updater.dispatcher
 
     dispatcher.add_handler(PreCheckoutQueryHandler(precheckout_callback))
-    dispatcher.add_handler(MessageHandler(Filters.successful_payment, successful_payment_callback))
-
+    dispatcher.add_handler(MessageHandler(Filters.successful_payment,
+                                          successful_payment_callback))
 
     # Add conversation handler with the states GENDER, PHOTO, LOCATION and BIO
     conv_handler = ConversationHandler(
@@ -526,8 +551,14 @@ def main() -> None:
                                        orders),
                         MessageHandler(Filters.regex('адреса складов'),
                                        selfstorage),
+                        MessageHandler(Filters.regex('Выбрать другой склад'),
+                                       selfstorage),
+                        MessageHandler(Filters.regex('Ок! Выбрать этот склад'),
+                                       get_tariff),
                         MessageHandler(Filters.regex('азад'),
                                        new),
+                        MessageHandler(Filters.location,
+                                       get_location),
                         MessageHandler(Filters.regex('курьер'),
                                        get_order_adress),
                         MessageHandler(Filters.regex('^(Тарифы)$'),
@@ -548,14 +579,14 @@ def main() -> None:
                                        start),
                         ],
             CHECKOUT: [MessageHandler(Filters.text & ~Filters.command,
-                                        send_invoice)
+                                      send_invoice)
                        ],
             ORDER_ADDRESS: [MessageHandler(Filters.text & ~Filters.command,
                                            get_order_adress)],
             ORDER_DATE: [MessageHandler(Filters.text & ~Filters.command,
                                         get_order_date)],
             GET_TARIFF: [MessageHandler(Filters.text & ~Filters.command,
-                                               get_tariff)],
+                                        get_tariff)],
             ORDER_SEND: [MessageHandler(Filters.regex('тправить заказ'),
                                         send_order_success)
                          ]
